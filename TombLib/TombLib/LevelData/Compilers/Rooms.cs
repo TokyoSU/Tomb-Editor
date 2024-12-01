@@ -239,10 +239,10 @@ namespace TombLib.LevelData.Compilers
                         newRoom.Flags |= 0x0080;
                     break;
                 case RoomType.Rain:
-                    if (isNG) newRoom.Flags |= 0x0800;
+                    if (isNG || isTR2) newRoom.Flags |= 0x0800;
                     break;
                 case RoomType.Snow:
-                    if (isNG) newRoom.Flags |= 0x0400;
+                    if (isNG || isTR2) newRoom.Flags |= 0x0400;
                     break;
             }
 

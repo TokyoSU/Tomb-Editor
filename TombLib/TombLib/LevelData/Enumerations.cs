@@ -189,5 +189,36 @@ namespace TombLib.LevelData
             "Custom 16"
         };
 
+        public static readonly List<string> TR2MainReverberationTypes = new List<string>()
+        {
+            "None",
+            "Generic",
+            "Room",
+            "Bathroom",
+            "Stone Room",
+            "Auditorium",
+            "Concert Hall",
+            "Cave",
+            "Arena",
+            "Hangar",
+            "Carpeted Hallway",
+            "Hallway",
+            "Stone Corridor",
+            "Alley",
+            "Forest",
+            "City",
+            "Mountains",
+            "Quarry",
+            "Plain",
+            "Parking Lot",
+            "Sewer Pipe",
+            "Underwater",
+            "Small Room",
+            "Medium Room",
+            "Large Room",
+            "Medium Hall",
+            "Large Hall",
+            "Plate"
+        };
     }
 }

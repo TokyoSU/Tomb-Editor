@@ -50,20 +50,21 @@ namespace TombEditor.ToolWindows
                 bool isTR4orNG = _editor.Level.Settings.GameVersion.Legacy() == TRVersion.Game.TR4;
                 bool isNGorTEN = _editor.Level.Settings.GameVersion >= TRVersion.Game.TRNG;
                 bool isTR4or5 = _editor.Level.Settings.GameVersion >= TRVersion.Game.TR4;
-                bool isTR345 = _editor.Level.Settings.GameVersion >= TRVersion.Game.TR3;
+                bool isTR2345 = _editor.Level.Settings.GameVersion >= TRVersion.Game.TR2;
                 bool isTR1 = _editor.Level.Settings.GameVersion == TRVersion.Game.TR1;
+                bool isTR2 = _editor.Level.Settings.GameVersion == TRVersion.Game.TR2;
 
                 cbHorizon.Enabled = !isTR1;
                 cbFlagOutside.Enabled = !isTR1;
                 cbFlagCold.Enabled = isNGorTEN;
                 cbFlagDamage.Enabled = isNGorTEN;
                 cbNoLensflare.Enabled = isTR4or5;
-                comboReverberation.Enabled = isTR345;
+                comboReverberation.Enabled = isTR2345;
                 comboReverberation.SelectedIndexChanged -= comboReverberation_SelectedIndexChanged; // Prevent SelectedIndexChanged event from DataSource assignment in next line
-                comboReverberation.DataSource = isTR4orNG && _editor.Level.Settings.GameEnableExtraReverbPresets ? StringEnums.ExtraReverberationTypes : StringEnums.ReverberationTypes;
+                comboReverberation.DataSource = isTR2 ? StringEnums.TR2MainReverberationTypes : isTR4orNG && _editor.Level.Settings.GameEnableExtraReverbPresets ? StringEnums.ExtraReverberationTypes : StringEnums.ReverberationTypes;
                 comboReverberation.SelectedIndexChanged += comboReverberation_SelectedIndexChanged;
                 comboReverberation.SelectedIndex = _editor.SelectedRoom.Properties.Reverberation < comboReverberation.Items.Count ? _editor.SelectedRoom.Properties.Reverberation : -1;
-                comboReverberation.DropDownWidth = isTR4orNG && _editor.Level.Settings.GameEnableExtraReverbPresets ? 121 : 71;
+                comboReverberation.DropDownWidth = isTR2 ? 121 : (isTR4orNG && _editor.Level.Settings.GameEnableExtraReverbPresets ? 121 : 71);
                 comboLightEffect.Enabled = !isTR1;
                 numLightEffectStrength.Enabled = !isTR1;
 
@@ -169,8 +170,7 @@ namespace TombEditor.ToolWindows
             comboFlipMap.Items.Clear();
             comboFlipMap.Items.Add("None");
 
-            int flipmapCount = (_editor.Level.Settings.GameVersion == TRVersion.Game.TombEngine) ? byte.MaxValue : 15;
-
+            int flipmapCount = (_editor.Level.Settings.GameVersion == TRVersion.Game.TR2 || _editor.Level.Settings.GameVersion == TRVersion.Game.TombEngine) ? byte.MaxValue : 15;
             for (int i = 0; i < flipmapCount; i++)
                 comboFlipMap.Items.Add(i.ToString());
 
@@ -184,10 +184,16 @@ namespace TombEditor.ToolWindows
             comboRoomType.Items.Add("Normal");
             comboRoomType.Items.Add("Water");
 
-            if (_editor.Level.Settings.GameVersion == TRVersion.Game.TR3 ||
-                _editor.Level.IsNG ||
-                _editor.Level.IsTombEngine)
+            var isTR2 = _editor.Level.Settings.GameVersion == TRVersion.Game.TR2;
+            var isTR23 = isTR2 || _editor.Level.Settings.GameVersion == TRVersion.Game.TR3;
+            if (isTR23 || _editor.Level.IsNG || _editor.Level.IsTombEngine)
                 comboRoomType.Items.Add("Quicksand");
+
+            if (isTR2)
+            {
+                comboRoomType.Items.Add("Rain");
+                comboRoomType.Items.Add("Snow");
+            }
 
             if (_editor.Level.IsNG)
                 StringEnums.NGRoomTypes.ForEach(i => comboRoomType.Items.Add(i));
@@ -195,7 +201,6 @@ namespace TombEditor.ToolWindows
             ReadRoomType();
 
             // Repopulate room effect type
-            bool isTR2 = _editor.Level.Settings.GameVersion == TRVersion.Game.TR2;
             var list = new List<string>()
             {
                 "None",
@@ -215,9 +220,10 @@ namespace TombEditor.ToolWindows
 
         private void WriteRoomType()
         {
-            RoomType newType;
+            RoomType newType = RoomType.Normal;
             byte newStrength = 0;
-
+            var isTR2 = _editor.Level.Settings.GameVersion == TRVersion.Game.TR2;
+            var isNG = _editor.Level.IsNG;
             switch (comboRoomType.SelectedIndex)
             {
                 case -1:
@@ -233,15 +239,37 @@ namespace TombEditor.ToolWindows
                     newType = RoomType.Quicksand;
                     break;
                 default:
-                    if (comboRoomType.SelectedIndex <= 6)
+                    if (isNG)
                     {
-                        newType = RoomType.Rain;
-                        newStrength = (byte)(comboRoomType.SelectedIndex - 3);
+                        if (comboRoomType.SelectedIndex <= 6)
+                        {
+                            newType = RoomType.Rain;
+                            newStrength = (byte)(comboRoomType.SelectedIndex - 3);
+                        }
+                        else
+                        {
+                            newType = RoomType.Snow;
+                            newStrength = (byte)(comboRoomType.SelectedIndex - 7);
+                        }
+                    }
+                    else if (isTR2)
+                    {
+                        switch (comboRoomType.SelectedIndex)
+                        {
+                            case 3:
+                                newType = RoomType.Rain;
+                                newStrength = 1;
+                                break;
+                            case 4:
+                                newType = RoomType.Snow;
+                                newStrength = 1;
+                                break;
+                        }
                     }
                     else
                     {
-                        newType = RoomType.Snow;
-                        newStrength = (byte)(comboRoomType.SelectedIndex - 7);
+                        newType = RoomType.Normal;
+                        newStrength = 0;
                     }
                     break;
             }
@@ -263,12 +291,14 @@ namespace TombEditor.ToolWindows
 
             int roomType = -1;
             if (room.Properties.Type == RoomType.Quicksand &&
-                (_editor.Level.Settings.GameVersion != TRVersion.Game.TR3 &&
+                (_editor.Level.Settings.GameVersion != TRVersion.Game.TR2 &&
+                 _editor.Level.Settings.GameVersion != TRVersion.Game.TR3 &&
                  _editor.Level.Settings.GameVersion != TRVersion.Game.TRNG &&
                  _editor.Level.Settings.GameVersion != TRVersion.Game.TombEngine))
                 roomType = -1;
             else if ((room.Properties.Type == RoomType.Rain || room.Properties.Type == RoomType.Snow) &&
-                     _editor.Level.Settings.GameVersion != TRVersion.Game.TRNG)
+                _editor.Level.Settings.GameVersion != TRVersion.Game.TR2 &&
+                _editor.Level.Settings.GameVersion != TRVersion.Game.TRNG)
                 roomType = -1;
             else
             {
@@ -283,21 +313,43 @@ namespace TombEditor.ToolWindows
                     case RoomType.Quicksand:
                         roomType = 2;
                         break;
-                    case RoomType.Rain:
-                        roomType = 3 + room.Properties.TypeStrength;
-                        break;
-                    case RoomType.Snow:
-                        roomType = 7 + room.Properties.TypeStrength;
+                    default:
+                        if (_editor.Level.IsNG)
+                        {
+                            switch (room.Properties.Type)
+                            {
+                                case RoomType.Rain:
+                                    roomType = 3 + room.Properties.TypeStrength;
+                                    break;
+                                case RoomType.Snow:
+                                    roomType = 7 + room.Properties.TypeStrength;
+                                    break;
+                            }
+                        }
+                        else if (_editor.Level.Settings.GameVersion == TRVersion.Game.TR2)
+                        {
+                            switch (room.Properties.Type)
+                            {
+                                case RoomType.Rain:
+                                    roomType = 3;
+                                    break;
+                                case RoomType.Snow:
+                                    roomType = 4;
+                                    break;
+                            }
+                        }
+                        else
+                        {
+                            roomType = -1;
+                        }
                         break;
                 }
             }
-            
             comboRoomType.SelectedIndex = roomType;
 
             // If selected type is -1 it means this room type is unsupported in current version. Throw a message about it.
             if (roomType == -1)
                 _editor.SendMessage("Current room type is not supported in this engine version.\nChange it manually or switch engine version.", PopupType.Warning);
-
         }
 
         private void comboRoom_SelectedIndexChanged(object sender, EventArgs e)
