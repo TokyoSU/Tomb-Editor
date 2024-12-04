@@ -444,7 +444,7 @@ namespace TombLib.LevelData.Compilers
             // Write final data
             writer.Write(AlternateRoom);
             writer.Write(Flags);
-            //writer.Write(ReverbInfo);
+            writer.Write(ReverbInfo);
         }
 
         public void WriteTr3(BinaryWriterEx writer)

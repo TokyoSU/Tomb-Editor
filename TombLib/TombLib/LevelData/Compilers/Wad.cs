@@ -856,93 +856,88 @@ namespace TombLib.LevelData.Compilers
                 writer.Write((ushort)(_level.IsNG ? _soundMapSize : 0));
             }
 
-            using (var ms = new MemoryStream())
+            using var ms = new MemoryStream();
             {
-                using (var bw = new BinaryWriterEx(ms))
+                using var bw = new BinaryWriterEx(ms);
+
+                // Write soundmap to level file
+                bw.Write((uint)_finalSoundMap.Length);
+                for (int i = 0; i < _finalSoundMap.Length; i++)
+                    bw.Write(_finalSoundMap[i]);
+
+                // Write sound details
+                int lastSampleIndex = 0;
+                bw.Write((uint)_finalSoundInfosList.Count);
+                for (int i = 0; i < _finalSoundInfosList.Count; i++)
                 {
-                    // Write soundmap to level file
-                    for (int i = 0; i < _finalSoundMap.Length; i++)
-                        bw.Write(_finalSoundMap[i]);
+                    var soundDetail = _finalSoundInfosList[i];
+                    if (soundDetail.Samples.Count > 0x0F)
+                        throw new Exception("Too many sound effects for sound info '" + soundDetail.Name + "'.");
 
-                    // Write sound details
-                    int lastSampleIndex = 0;
-                    bw.Write((uint)_finalSoundInfosList.Count);
-                    for (int i = 0; i < _finalSoundInfosList.Count; i++)
+                    ushort characteristics = 0;
+                    if (_level.Settings.GameVersion == TRVersion.Game.TR1)
                     {
-                        var soundDetail = _finalSoundInfosList[i];
-                        
-                        if (soundDetail.Samples.Count > 0x0F)
-                            throw new Exception("Too many sound effects for sound info '" + soundDetail.Name + "'.");
-
-                        ushort characteristics;
-
-                        if (_level.Settings.GameVersion == TRVersion.Game.TR1)
+                        characteristics = soundDetail.LoopBehaviour switch
                         {
-                            switch (soundDetail.LoopBehaviour)
-                            {
-                                default:
-                                case WadSoundLoopBehaviour.None:
-                                case WadSoundLoopBehaviour.OneShotRewound:
-                                    characteristics = 1;
-                                    break;
-                                case WadSoundLoopBehaviour.OneShotWait:
-                                    characteristics = 0;
-                                    break;
-                                case WadSoundLoopBehaviour.Looped:
-                                    characteristics = 2;
-                                    break;
-                            }
-                        }
-                        else
-                            characteristics = (ushort)(3 & (int)soundDetail.LoopBehaviour);
-
-                        characteristics |= (ushort)(soundDetail.Samples.Count << 2);
-                        if (soundDetail.DisablePanning)
-                            characteristics |= 0x1000;
-                        if (soundDetail.RandomizePitch)
-                            characteristics |= 0x2000;
-                        if (soundDetail.RandomizeVolume)
-                            characteristics |= 0x4000;
-
-                        if (_level.Settings.GameVersion <= TRVersion.Game.TR2)
+                            WadSoundLoopBehaviour.OneShotWait => 0,
+                            WadSoundLoopBehaviour.Looped => 2,
+                            _ => 1,
+                        };
+                    }
+                    else
+                    {
+                        switch (soundDetail.LoopBehaviour)
                         {
-                            var newSoundDetail = new tr_sound_details();
-                            newSoundDetail.Sample = (ushort)lastSampleIndex;
-                            newSoundDetail.Volume = (ushort)Math.Round(soundDetail.Volume / WadSoundInfo.MaxAttribValue * short.MaxValue);
-                            newSoundDetail.Chance = (ushort)Math.Floor((soundDetail.Chance == WadSoundInfo.MaxAttribValue ? 0 : soundDetail.Chance) / WadSoundInfo.MaxAttribValue * short.MaxValue);
-                            newSoundDetail.Characteristics = characteristics;
-                            bw.WriteBlock(newSoundDetail);
+                            case WadSoundLoopBehaviour.OneShotWait:
+                                characteristics = 0x0200;
+                                break;
+                            case WadSoundLoopBehaviour.OneShotRewound:
+                                characteristics = 0x0400;
+                                break;
+                            case WadSoundLoopBehaviour.Looped:
+                                characteristics = 0x0800;
+                                break;
                         }
-                        else
-                        {
-                            var newSoundDetail = new tr3_sound_details();
-                            newSoundDetail.Sample = (ushort)lastSampleIndex;
-                            newSoundDetail.Volume = (byte)Math.Round(soundDetail.Volume / WadSoundInfo.MaxAttribValue * byte.MaxValue);
-                            newSoundDetail.Chance = (byte)Math.Floor((soundDetail.Chance == WadSoundInfo.MaxAttribValue ? 0 : soundDetail.Chance) / WadSoundInfo.MaxAttribValue * byte.MaxValue);
-                            newSoundDetail.Range  = (byte)soundDetail.RangeInSectors;
-                            newSoundDetail.Pitch  = (byte)Math.Round(soundDetail.PitchFactor / WadSoundInfo.MaxAttribValue * sbyte.MaxValue + (soundDetail.PitchFactor < 0 ? (byte.MaxValue + 1) : 0));
-                            newSoundDetail.Characteristics = characteristics;
-                            bw.WriteBlock(newSoundDetail);
-                        }
-                        lastSampleIndex += soundDetail.Samples.Count;
                     }
 
-                    int maxSampleCount = _limits[Limit.SoundSampleCount];
-                    if (lastSampleIndex > maxSampleCount)
-                        _progressReporter.ReportWarn("Level contains " + lastSampleIndex + 
-                            " samples, while maximum is " + maxSampleCount + ". Level may crash. Turn off some sounds to prevent that.");
-
-                    // Write sample indices (not used but parsed in TR4-5)
-                    if (_level.Settings.GameVersion > TRVersion.Game.TR1)
+                    byte sampleCount = 1;
+                    if (soundDetail.Samples.Count > 1)
                     {
-                        bw.Write((uint)_finalSoundIndicesList.Count);
-                        for (int i = 0; i < _finalSoundIndicesList.Count; i++)
-                            bw.Write((uint)_finalSoundIndicesList[i]);
+                        characteristics |= 0x80; // Randomize samples flags.
+                        sampleCount = (byte)soundDetail.Samples.Count;
                     }
+                    if (soundDetail.DisablePanning)
+                        characteristics |= 0x1000;
+                    if (soundDetail.RandomizePitch)
+                        characteristics |= 0x2000;
+                    if (soundDetail.RandomizeVolume)
+                        characteristics |= 0x4000;
+
+                    bw.Write((ushort)lastSampleIndex);
+                    bw.Write((byte)Math.Round(soundDetail.Volume / WadSoundInfo.MaxAttribValue * byte.MaxValue));
+                    bw.Write((byte)Math.Floor((soundDetail.Chance == WadSoundInfo.MaxAttribValue ? 0 : soundDetail.Chance) / WadSoundInfo.MaxAttribValue * byte.MaxValue));
+                    bw.Write((byte)soundDetail.RangeInSectors);
+                    bw.Write((byte)Math.Round(soundDetail.PitchFactor / WadSoundInfo.MaxAttribValue * sbyte.MaxValue + (soundDetail.PitchFactor < 0 ? (byte.MaxValue + 1) : 0)));
+                    bw.Write((byte)sampleCount);
+                    bw.Write(characteristics);
+
+                    lastSampleIndex += soundDetail.Samples.Count;
                 }
 
-                writer.Write(ms.ToArray());
+                int maxSampleCount = _limits[Limit.SoundSampleCount];
+                if (lastSampleIndex > maxSampleCount)
+                    _progressReporter.ReportWarn("Level contains " + lastSampleIndex +
+                        " samples, while maximum is " + maxSampleCount + ". Level may crash. Turn off some sounds to prevent that.");
+
+                // Write sample indices (not used but parsed in TR4-5)
+                if (_level.Settings.GameVersion > TRVersion.Game.TR1)
+                {
+                    bw.Write((uint)_finalSoundIndicesList.Count);
+                    for (int i = 0; i < _finalSoundIndicesList.Count; i++)
+                        bw.Write((uint)_finalSoundIndicesList[i]);
+                }
             }
+            writer.Write(ms.ToArray());
         }
 
         private void WriteSoundData(BinaryWriter writer)
