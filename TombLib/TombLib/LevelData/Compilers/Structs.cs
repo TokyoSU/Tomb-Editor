@@ -415,7 +415,6 @@ namespace TombLib.LevelData.Compilers
 
             // Write room color
             writer.Write((ushort)(AmbientIntensity));
-            writer.Write((ushort)(AmbientIntensity));
 
             // TODO: Light mode
             writer.Write(LightMode);
@@ -430,8 +429,6 @@ namespace TombLib.LevelData.Compilers
                     writer.Write(light.Y);
                     writer.Write(light.Z);
                     writer.Write(light.Intensity);
-                    writer.Write(light.Intensity);
-                    writer.Write((uint)light.Out / 2);
                     writer.Write((uint)light.Out / 2);
                 }
             }

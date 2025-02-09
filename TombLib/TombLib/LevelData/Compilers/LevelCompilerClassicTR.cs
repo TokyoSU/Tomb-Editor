@@ -455,7 +455,7 @@ namespace TombLib.LevelData.Compilers
 
         private void PrepareItems()
         {
-            bool isNewTR = _level.Settings.GameVersion > TRVersion.Game.TR3;
+            bool isNewTR = _level.Settings.GameVersion >= TRVersion.Game.TR2;
 
             ReportProgress(42, "Building items table");
 
